@@ -30,7 +30,7 @@ public class ProducerBitCode {
             jsonObject.put("id", 111111);
             jsonObject.put("code", code);
             jsonObject.put("num", 3);
-            ProducerRecord<String, String> record = new ProducerRecord<String, String>("bit2", "this is message" + i, jsonObject.toJSONString());
+            ProducerRecord<String, String> record = new ProducerRecord<String, String>("bit", "this is message" + i, jsonObject.toJSONString());
             producer.send(record,
                     new Callback() {
                         public void onCompletion(RecordMetadata metadata, Exception e) {
@@ -40,7 +40,7 @@ public class ProducerBitCode {
                         }
                     });
             i++;
-            Thread.sleep(1000);
+            Thread.sleep(5000);
         }
     }
 

@@ -19,7 +19,7 @@ object MQUtils {
 
     def getConnection(): Connection = {
         // Create a ConnectionFactory
-        val connectionFactory: ActiveMQConnectionFactory = new ActiveMQConnectionFactory("tcp://192.168.8.10:61616")
+        val connectionFactory: ActiveMQConnectionFactory = new ActiveMQConnectionFactory("tcp://activemq:61616")
 
         // Create a Connection
         val connection: Connection = connectionFactory.createConnection
@@ -45,7 +45,7 @@ object MQUtils {
 
     def sendMsg(json: String): Unit = {
         // Create a ConnectionFactory
-        val connectionFactory: ActiveMQConnectionFactory = new ActiveMQConnectionFactory("tcp://192.168.8.10:61616")
+        val connectionFactory: ActiveMQConnectionFactory = new ActiveMQConnectionFactory("tcp://activemq:61616")
 
         // Create a Connection
         val connection: Connection = connectionFactory.createConnection
@@ -59,6 +59,7 @@ object MQUtils {
 
         // Create a MessageProducer from the Session to the Topic or Queue
         val producer: MessageProducer = session.createProducer(destination)
+
         producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT)
 
         // Create a messages

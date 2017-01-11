@@ -16,7 +16,7 @@ public class Consumer {
     public static void main(String[] args) throws Exception {
         KafkaConsumer<String, String> consumer = KafkaUtil.getConsumer();
         // face bit
-        consumer.subscribe(Arrays.asList("bit2"));
+        consumer.subscribe(Arrays.asList("bit"));
         while (true) {
             ConsumerRecords<String, String> records = consumer.poll(1000);
             for (ConsumerRecord<String, String> record : records) {
