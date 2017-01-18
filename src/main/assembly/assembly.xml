@@ -50,7 +50,7 @@
             <fileMode>0644</fileMode>
             <directoryMode>0755</directoryMode>
             <includes>
-                <include>cstor-spark.properties</include>
+                <include>cstor-spark*.properties</include>
                 <include>log4j.properties</include>
             </includes>
         </fileSet>
