@@ -1,6 +1,6 @@
 package cn.cstor.face
 
-import cn.cstor.common.{Constants, GlobalHConnection}
+import cn.cstor.common.Constants
 import cn.cstor.face.bean.PersonInfo
 import cn.cstor.face.meta.DataTables
 import cn.cstor.util.HBaseUtils
@@ -15,7 +15,7 @@ object BatchPersonInfo {
   def main(args: Array[String]): Unit = {
     val sparkConf = new SparkConf()
       .setAppName("bit-face-data-batch-hbase")
-      .setMaster("local[4]")
+      //.setMaster("local[4]")
 
     val sc = new SparkContext(sparkConf)
     val features = sc.textFile(sparkConf.get("spark.face.batch.hbase.src",
@@ -24,7 +24,7 @@ object BatchPersonInfo {
 
     val faceTable = DataTables("face").FaceInfo.name
     val personInfoData = format(features)
-    val zkQ = sparkConf.get("hbase.zookeeper.quorum", "master01")
+    val zkQ = sparkConf.get("hbase.zookeeper.quorum", "datadeep11")
     val zkZ = sparkConf.get("zookeeper.znode.parent", "/hbase")
     val zkP = sparkConf.get("hbase.zookeeper.property.clientPort", "3181")
     write2HBase(personInfoData, faceTable, zkQ, zkZ, zkP)

@@ -3,9 +3,11 @@
 SPARK_SUBMIT="/home/hadoop/spark/bin/spark-submit"
 
 Usage="Usage: \n
-$0 <b|f> \n
+$0 <b|f|c|h> \n
 b\tBitFaceCompare, to compare relativity using bitset.\n
-f\tFaceCompare, to compare relativity using 4096."
+f\tFaceCompare, to compare relativity using 4096.\n
+c\tETLData, to clear the features code.\n
+h\tBatchPersonInfo, to import the features code to hbase."
 
 run (){
     if [ -f $RUN_PATH/$PID_FILE ]; then
@@ -50,6 +52,18 @@ case $1 in
     CONF="$ROOT/conf/cstor-spark.properties"
     LOG_FILE="faceCompare.out"
     PID_FILE="faceCompare.pid"
+    ;;
+  c)
+    CLASS="cn.cstor.face.ETLData"
+    CONF="$ROOT/conf/cstor-spark-batch.properties"
+    LOG_FILE="ETLData.out"
+    PID_FILE="ETLData.pid"
+    ;;
+  h)
+    CLASS="cn.cstor.face.BatchPersonInfo"
+    CONF="$ROOT/conf/cstor-spark-batch.properties"
+    LOG_FILE="BatchPersonInfo.out"
+    PID_FILE="BatchPersonInfo.pid"
     ;;
   *)
     echo -e $Usage

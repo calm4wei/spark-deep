@@ -431,7 +431,9 @@ object BitFaceCompare {
                     val t4 = System.currentTimeMillis()
                     jsonObj.put("compare_time", (t2 - t1))
                     jsonObj.put("sort time=", (t3 - t2))
+                    jsonObj.put("take time=", (t4 - t3))
                     jsonObj.put("total time=", (t4 - t1))
+                    jsonObj.put("from kafka and deal time",t4 - userid.toLong)
 
                     println("total time=" + (t2 - t1))
                     // 发送结果到mq
