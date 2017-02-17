@@ -11,8 +11,6 @@ import org.apache.spark.streaming.kafka.KafkaUtils
 import org.apache.spark.streaming.{Milliseconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkContext}
 
-import scala.util.Sorting
-
 /**
   * Created on 2016/12/26
   *
@@ -156,62 +154,6 @@ object BitFaceCompare {
 
     /**
       * 1 v n 特征码比较
-      * 全排序
-      *
-      * @param dStream
-      * @param baseData
-      * @return
-      */
-    def compare(dStream: DStream[(String, String, Int)], baseData: Array[(util.BitSet, String)]): DStream[(Int, String, String)] = {
-        dStream.map(
-            ds => {
-                val t1 = System.currentTimeMillis()
-                val num = ds._3
-                val userid = ds._2
-                val code = ds._1
-                val userBitSet = new util.BitSet()
-                val chars = code.toCharArray
-                for (i <- 0 to chars.length - 1) {
-                    if (chars(i) == '1') {
-                        userBitSet.set(i)
-                    }
-                }
-
-                val rs = baseData.map { r =>
-                    val baseBitSet = r._1
-                    userBitSet.xor(baseBitSet)
-                    (128 - userBitSet.cardinality(), r._2, userid)
-                }
-
-                val t3 = System.currentTimeMillis()
-                // 根据匹配度排序
-                Sorting.quickSort(rs)(Ordering[(Int, String, String)].on(x => (-x._1, x._2, x._3)))
-                val t4 = System.currentTimeMillis()
-                val rsNum = rs.take(num)
-                val jsonObj = new JSONObject()
-                val jsonArr = new JSONArray()
-                for (elem <- rsNum) {
-                    val rate = elem._1
-                    jsonArr.add(rate + "_" + elem._2)
-                    println("rate=" + rate + " ,address=" + elem._2)
-                }
-                jsonObj.put("id", userid)
-                jsonObj.put("imgs", jsonArr)
-                val t2 = System.currentTimeMillis()
-                jsonObj.put("compare_time", (t3 - t1))
-                jsonObj.put("sort_time=", (t4 - t3))
-                jsonObj.put("total time=", (t2 - t1))
-                println("total time=" + (t2 - t1))
-                // 发送结果到mq
-                MQUtils.sendMsg(jsonObj.toJSONString)
-
-                rs.last
-            }
-        )
-    }
-
-    /**
-      * 1 v n 特征码比较
       * 针对最大的前n个排序
       *
       * @param dStream
@@ -281,94 +223,6 @@ object BitFaceCompare {
         )
     }
 
-    /**
-      * 1 v n 特征码比较
-      * 针对最大的前n个排序
-      *
-      * @param paramRDD
-      * @param baseData
-      * @return
-      */
-    def compareTopnByRDD(paramRDD: RDD[(String, String, Int)], baseData: RDD[(util.BitSet, String)]): Unit = {
-        if (!paramRDD.isEmpty()) {
-            val paris = paramRDD.collect()
-            paris.foreach {
-                pair =>
-                    val t1 = System.currentTimeMillis()
-                    val num = pair._3
-                    val userid = pair._2
-                    val code = pair._1
-                    val userBitSet = new util.BitSet()
-                    val chars = code.toCharArray
-                    for (i <- 0 to chars.length - 1) {
-                        if (chars(i) == '1') {
-                            userBitSet.set(i)
-                        }
-                    }
-
-                    val list = new util.ArrayList[(Int, String, String)]()
-                    val rs = baseData.map { r =>
-                        val baseBitSet = r._1
-                        val compareBitSet = new util.BitSet(128)
-                        compareBitSet.or(userBitSet)
-                        compareBitSet.xor(baseBitSet)
-                        val tuple = (128 - compareBitSet.cardinality(), r._2, userid)
-                        println("+++++++++++++ begin +++++++++++++++")
-                        if (list.size() < num) {
-                            println("**************list.size() < num****************")
-                            println("tuple in list size=" + tuple)
-                            list.add(tuple)
-                        } else {
-                            // 排序num个结果
-                            list.sort(new Comparator[(Int, String, String)] {
-                                override def compare(o1: (Int, String, String), o2: (Int, String, String)): Int = {
-                                    if (o1._1 > o2._1) 1 else -1
-                                }
-                            })
-                            // 保证队列中只有num个结果
-                            if (tuple._1 > list.get(0)._1) {
-                                list.remove(0)
-                                list.add(tuple)
-                                println("############tuple._1 > list.get(0)._1###############")
-                                println("tuple._1 > list.get(0)._1=" + tuple)
-
-                            }
-                        }
-                        tuple
-                    }
-
-                    val t3 = System.currentTimeMillis()
-                    // 根据匹配度排序
-                    //                    val rss = rs.sortBy {
-                    //                        line => line._1
-                    //                    }
-
-                    val jsonObj = new JSONObject()
-                    val jsonArr = new JSONArray()
-                    // 倒序遍历
-                    for (i <- (0 until (list.size())).reverse) {
-                        val elem = list.get(i)
-                        val rate = (elem._1 / 128.0)
-                        jsonArr.add(rate + "_" + elem._2)
-                        println("rate=" + rate + " ,address=" + elem._2)
-                    }
-                    jsonObj.put("id", userid)
-                    jsonObj.put("imgs", jsonArr)
-                    jsonObj.put("size", list.size())
-                    jsonObj.put("num", num)
-                    jsonObj.put("baseData take=", baseData.take(1)(0))
-                    val t2 = System.currentTimeMillis()
-                    jsonObj.put("compare_time", (t3 - t1))
-                    jsonObj.put("total time=", (t2 - t1))
-
-                    println("total time=" + (t2 - t1))
-                    // 发送结果到mq
-                    MQUtils.sendMsg(jsonObj.toJSONString)
-            }
-        }
-
-
-    }
 
     /**
       * 1 v n 特征码比较
@@ -403,9 +257,6 @@ object BitFaceCompare {
                         val tuple = (128 - compareBitSet.cardinality(), r._2, userid)
                         tuple
                     }
-                    //                            .filter(r =>
-                    //                        if (r._1 > 0.5) true else false
-                    //                    )
 
                     val t2 = System.currentTimeMillis()
                     // 排序
@@ -433,7 +284,7 @@ object BitFaceCompare {
                     jsonObj.put("sort time=", (t3 - t2))
                     jsonObj.put("take time=", (t4 - t3))
                     jsonObj.put("total time=", (t4 - t1))
-                    jsonObj.put("from kafka and deal time",t4 - userid.toLong)
+                    jsonObj.put("from kafka and deal time", t4 - userid.toLong)
 
                     println("total time=" + (t2 - t1))
                     // 发送结果到mq

@@ -52,9 +52,21 @@ esac
 
 CMD="$SPARK_SUBMIT \
   --class $CLASS \
-  --master local[4] \
-  --executor-memory 4G \
-  --properties-file $CONF \
+  ---master spark://master:7077 \
+  --driver-cores 2 \
+  --driver-memory 10G \
+  --total-executor-cores 20 \
+  --executor-memory 20G \
+  -properties-file $CONF \
   cstor-deep-1.0-SNAPSHOT.jar"
 echo -e "$CMD"
 run "$CMD" &
+
+#CMD="$SPARK_SUBMIT \
+#  --class $CLASS \
+#  --master local[4] \
+#  --executor-memory 4G \
+#  --properties-file $CONF \
+#  cstor-deep-1.0-SNAPSHOT.jar"
+#echo -e "$CMD"
+#run "$CMD" &

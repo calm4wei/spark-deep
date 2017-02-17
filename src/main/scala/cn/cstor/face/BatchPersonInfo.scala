@@ -21,12 +21,16 @@ object BatchPersonInfo {
     val features = sc.textFile(sparkConf.get("spark.face.batch.hbase.src",
       "/Users/fengwei/Documents/work/Travel_in_XinJiang/test/01/part-00*"),
       sparkConf.getInt("spark.face.batch.hbase.patition", 2))
+    println("====================================")
+    println(sparkConf.get("spark.face.batch.hbase.src", "src defalut"))
+    println("quorum=" + sparkConf.get("hbase.zookeeper.quorum","zk defalut"))
+    val zkQ = sparkConf.get("hbase.zookeeper.quorum", "master,slave01,slave02")
+    val zkZ = sparkConf.get("zookeeper.znode.parent", "/hbase")
+    val zkP = sparkConf.get("hbase.zookeeper.property.clientPort", "3181")
 
     val faceTable = DataTables("face").FaceInfo.name
     val personInfoData = format(features)
-    val zkQ = sparkConf.get("hbase.zookeeper.quorum", "datadeep11")
-    val zkZ = sparkConf.get("zookeeper.znode.parent", "/hbase")
-    val zkP = sparkConf.get("hbase.zookeeper.property.clientPort", "3181")
+
     write2HBase(personInfoData, faceTable, zkQ, zkZ, zkP)
   }
 

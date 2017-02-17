@@ -19,7 +19,6 @@ import scala.util.Sorting
   */
 object FaceCompare extends Logging {
 
-
     def main(args: Array[String]) {
 
         val sparkConf = new SparkConf()

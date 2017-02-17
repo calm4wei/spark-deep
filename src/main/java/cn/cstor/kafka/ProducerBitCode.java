@@ -44,7 +44,7 @@ public class ProducerBitCode {
                         }
                     });
             i++;
-            interval = random.nextInt(10) * 1000;
+            // interval = random.nextInt(10) * 1000;
             Thread.sleep(interval);
         }
     }
