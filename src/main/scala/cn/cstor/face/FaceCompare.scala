@@ -1,6 +1,7 @@
 package cn.cstor.face
 
 import cn.cstor.activemq.MQUtils
+import cn.cstor.kafka.{ProducerBitCode, Producer}
 import com.alibaba.fastjson.{JSON, JSONArray, JSONObject}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.dstream.DStream
@@ -8,7 +9,6 @@ import org.apache.spark.streaming.kafka.KafkaUtils
 import org.apache.spark.streaming.{Milliseconds, StreamingContext}
 import org.apache.spark.{Logging, SparkConf, SparkContext}
 
-import scala.collection.mutable
 import scala.util.Sorting
 
 /**
@@ -22,14 +22,14 @@ object FaceCompare extends Logging {
     def main(args: Array[String]) {
 
         val sparkConf = new SparkConf()
-                .setAppName("spark-streaming-test")
+                .setAppName("spark-streaming-4096")
         //.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
         val sc = new SparkContext(sparkConf)
         val fileBase = sc.textFile(sparkConf.get("spark.face.hdfs.path"), sparkConf.getInt("spark.face.batch.num.partition", 20))
         println("fileBase=" + fileBase.count())
-        val baseData: Array[(String, String)] = formatBase(fileBase).collect()
-        println("baseData=" + baseData.length)
+        val baseData = formatBase(fileBase)
+        println("baseData=" + baseData.count())
 
         val ssc = new StreamingContext(sc, Milliseconds(sparkConf.getInt("spark.face.streaming.millis.duration", 100)))
         ssc.checkpoint(sparkConf.get("spark.face.streaming.checkpoint"))
@@ -47,8 +47,10 @@ object FaceCompare extends Logging {
         val params = parseParam2(lines)
         params.print()
 
-        val result = compare(params, baseData)
-        result.print()
+        params.foreachRDD {
+            p =>
+                compare(p, baseData)
+        }
 
         if ("yes".equalsIgnoreCase(sparkConf.get("spark.face.result.save"))) {
             params.saveAsTextFiles("/out/", "result")
@@ -166,59 +168,67 @@ object FaceCompare extends Logging {
     /**
       * ids of custom compre with id of database in file
       *
-      * @param dStream  :ids of custom
+      * @param paramRDD :ids of custom
       * @param baseData :id of database in file
       * @return
       */
-    def compare(dStream: DStream[(String, Int)], baseData: RDD[(String, String)]): mutable.HashMap[Double, String] = {
-        val params = new mutable.HashMap[String, Int]()
-        dStream.map(
-            ds => {
-                params.put(ds._1, ds._2)
-                MQUtils.sendMsg("test...." + ds._2)
+    def compare(paramRDD: RDD[(String, String, Int)], baseData: RDD[(String, String)]): Unit = {
+
+        if (!paramRDD.isEmpty()) {
+            val pairs = paramRDD.collect()
+            pairs.foreach {
+                ds => {
+                    val num = ds._3
+                    val userid = ds._2
+                    val userSource = ds._1.split(" ").map(_.toDouble).toVector
+
+                    val rs = baseData.map { r =>
+                        val baseSource = r._1.split(" ").map(_.toDouble).toVector
+                        val member = userSource.zip(baseSource)
+                                .map(d => d._1 * d._2).reduce(_ + _)
+                                .toDouble
+
+                        val temp1 = math.sqrt(userSource.map(num => {
+                            math.pow(num, 2)
+                        }).reduce(_ + _))
+
+                        val temp2 = math.sqrt(baseSource.map(num => {
+                            math.pow(num, 2)
+                        }).reduce(_ + _))
+
+                        val denominator = temp1 * temp2
+
+                        val rate = (member / denominator)
+                        (rate, r._2, userid)
+                    }
+
+                    // 排序
+                    val rss = rs.sortBy(
+                        line => line._1
+                        , false // false : 降序, true : 升序
+                        // , 1 // 影响排序效率
+                    )
+
+                    val jsonObj = new JSONObject()
+                    val jsonArr = new JSONArray()
+
+                    val rsNum = rss.take(num)
+                    for (i <- 0 to (rsNum.length - 1)) {
+                        val elem = rsNum(i)
+                        val rate = (elem._1)
+                        jsonArr.add(rate + "_" + elem._2)
+                    }
+                    jsonObj.put("id", userid)
+                    jsonObj.put("imgs", jsonArr)
+                    jsonObj.put("num", num)
+
+                    println("jsonObj=" + jsonObj.toString)
+
+                    val producer: Producer = new ProducerBitCode
+                    producer.sendMsg("faceRtn", "face compare result: ", jsonObj.toJSONString)
+                }
             }
-        )
-        val mpas = new mutable.HashMap[Double, String]()
-        for (elem <- params) {
-            val t1 = System.currentTimeMillis()
-            val userSource = elem._1.split(" ").map(_.toDouble).toVector
-            val num = elem._2
-            val rs = baseData.map { r =>
-                val baseSource = r._1.split(" ").map(_.toDouble).toVector
-                val member = userSource.zip(baseSource)
-                        .map(d => d._1 * d._2).reduce(_ + _)
-                        .toDouble
-
-                val temp1 = math.sqrt(userSource.map(num => {
-                    math.pow(num, 2)
-                }).reduce(_ + _))
-
-                val temp2 = math.sqrt(baseSource.map(num => {
-                    math.pow(num, 2)
-                }).reduce(_ + _))
-
-                val denominator = temp1 * temp2
-
-                val rate = (member / denominator)
-                (rate, r._2)
-            }.sortBy(
-                line => line._1,
-                true,
-                1
-            )
-
-            val rsNum = rs.take(num)
-            for (i <- 0 to rsNum.length) {
-                println("return id address=" + rsNum(i)._2)
-                mpas.put(rsNum(i)._1, rsNum(i)._2)
-                MQUtils.sendMsg("address...." + rsNum(i)._2)
-            }
-
-            val t2 = System.currentTimeMillis()
-            println("t2 - t1=" + (t2 - t1))
         }
-        mpas
-
     }
 
 

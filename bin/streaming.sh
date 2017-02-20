@@ -49,7 +49,7 @@ case $1 in
     ;;
   f)
     CLASS="cn.cstor.face.FaceCompare" 
-    CONF="$ROOT/conf/cstor-spark.properties"
+    CONF="$ROOT/conf/cstor-spark-bit.properties"
     LOG_FILE="faceCompare.out"
     PID_FILE="faceCompare.pid"
     ;;
@@ -79,3 +79,14 @@ CMD="$SPARK_SUBMIT \
   cstor-deep-1.0-SNAPSHOT.jar"
 echo -e "$CMD"
 run "$CMD" &
+
+#CMD="$SPARK_SUBMIT \
+#  --class $CLASS \
+#  --master spark://datacube201:7077 \
+#  --driver-cores 2 \
+#  --driver-memory 10G \
+#  --total-executor-cores 80 \
+#  --executor-memory 10G \
+#  --properties-file $CONF \
+#  cstor-deep-1.0-SNAPSHOT.jar"
+#echo -e "$CMD"
