@@ -1,7 +1,6 @@
 package cn.cstor.face
 
 import java.util
-import java.util.Comparator
 
 import cn.cstor.activemq.MQUtils
 import com.alibaba.fastjson.{JSON, JSONArray, JSONObject}
@@ -17,6 +16,7 @@ import org.apache.spark.{SparkConf, SparkContext}
   * @author feng.wei
   */
 object BitFaceCompare {
+
 
     def main(args: Array[String]) {
 
@@ -53,18 +53,17 @@ object BitFaceCompare {
         println("=================================")
         val lines = KafkaUtils.createStream(ssc, zkQuorum, group, topicMap).map(_._2)
 
-        val params = parseParam(lines)
+        val params = parseParam(lines).repartition(3)
 
         //
         params.foreachRDD {
             p =>
-                //                compareTopnByRDD(p, baseData)
-                compareSortTopnByRDD(p, baseData)
+                p.foreachPartition {
+                    f => compareSortPartitions(f, baseData)
+                }
+            //compareSortTopnByRDD(p, baseData)
         }
 
-        //        val result = compare(params, baseData)
-        //        val result = compareTopnByArr(params, baseData)
-        //        result.print()
 
         if ("yes".equalsIgnoreCase(sparkConf.get("spark.face.result.save"))) {
             params.saveAsTextFiles("/out/", "result")
@@ -156,78 +155,6 @@ object BitFaceCompare {
       * 1 v n 特征码比较
       * 针对最大的前n个排序
       *
-      * @param dStream
-      * @param baseData
-      * @return
-      */
-    def compareTopnByArr(dStream: DStream[(String, String, Int)], baseData: Array[(util.BitSet, String)]): DStream[(Int, String, String)] = {
-        dStream.map(
-            ds => {
-                val t1 = System.currentTimeMillis()
-                val num = ds._3
-                val userid = ds._2
-                val code = ds._1
-                val userBitSet = new util.BitSet()
-                val chars = code.toCharArray
-                for (i <- 0 to chars.length - 1) {
-                    if (chars(i) == '1') {
-                        userBitSet.set(i)
-                    }
-                }
-
-                val list = new util.ArrayList[(Int, String, String)]()
-                val rs = baseData.map { r =>
-                    val baseBitSet = r._1
-                    userBitSet.xor(baseBitSet)
-                    val tuple = (128 - userBitSet.cardinality(), r._2, userid)
-                    if (list.size() < num) {
-                        list.add(tuple)
-                    } else {
-                        // 排序num个结果
-                        list.sort(new Comparator[(Int, String, String)] {
-                            override def compare(o1: (Int, String, String), o2: (Int, String, String)): Int = {
-                                if (o1._1 > o2._1) 1 else -1
-                            }
-                        })
-                        // 保证队列中只有num个结果
-                        if (tuple._1 > list.get(0)._1) {
-                            list.remove(0)
-                            list.add(tuple)
-                        }
-                    }
-                    tuple
-                }
-
-                val t3 = System.currentTimeMillis()
-
-                val jsonObj = new JSONObject()
-                val jsonArr = new JSONArray()
-                // 倒序遍历
-                for (i <- (0 until (list.size())).reverse) {
-                    val elem = list.get(i)
-                    val rate = (elem._1 / 128.0)
-                    jsonArr.add(rate + "_" + elem._2)
-                    println("rate=" + rate + " ,address=" + elem._2)
-                }
-                jsonObj.put("id", userid)
-                jsonObj.put("imgs", jsonArr)
-                val t2 = System.currentTimeMillis()
-                jsonObj.put("compare_time", (t3 - t1))
-                jsonObj.put("total time=", (t2 - t1))
-                println("total time=" + (t2 - t1))
-                // 发送结果到mq
-                MQUtils.sendMsg(jsonObj.toJSONString)
-
-                rs.last
-            }
-        )
-    }
-
-
-    /**
-      * 1 v n 特征码比较
-      * 针对最大的前n个排序
-      *
       * @param paramRDD
       * @param baseData
       * @return
@@ -291,7 +218,76 @@ object BitFaceCompare {
                     MQUtils.sendMsg(jsonObj.toJSONString)
             }
         }
+    }
 
+
+    /**
+      * 1 v n 特征码比较
+      * 针对最大的前n个排序
+      *
+      * @param iters
+      * @param baseData
+      * @return
+      */
+    def compareSortPartitions(iters: Iterator[(String, String, Int)], baseData: RDD[(util.BitSet, String)]): Unit = {
+        if (!iters.isEmpty) {
+            iters.foreach {
+                pair => {
+                    val t1 = System.currentTimeMillis()
+                    val num = pair._3
+                    val userid = pair._2
+                    val code = pair._1
+                    val userBitSet = new util.BitSet(128)
+                    val chars = code.toCharArray
+                    for (i <- 0 to chars.length - 1) {
+                        if (chars(i) == '1') {
+                            userBitSet.set(i)
+                        }
+                    }
+
+                    val rs = baseData.map { r =>
+                        val baseBitSet = r._1
+                        val compareBitSet = new util.BitSet(128)
+                        compareBitSet.or(userBitSet)
+                        compareBitSet.xor(baseBitSet)
+                        val tuple = (128 - compareBitSet.cardinality(), r._2, userid)
+                        tuple
+                    }
+
+                    val t2 = System.currentTimeMillis()
+                    // 排序
+                    val rss = rs.sortBy(
+                        line => line._1
+                        , false // false : 降序, true : 升序
+                        // , 1 // 影响排序效率
+                    )
+                    val t3 = System.currentTimeMillis()
+
+                    val jsonObj = new JSONObject()
+                    val jsonArr = new JSONArray()
+
+                    val rsNum = rss.take(num)
+                    for (i <- 0 to (rsNum.length - 1)) {
+                        val elem = rsNum(i)
+                        val rate = (elem._1 / 128.0)
+                        jsonArr.add(rate + "_" + elem._2)
+                    }
+                    jsonObj.put("id", userid)
+                    jsonObj.put("imgs", jsonArr)
+                    jsonObj.put("num", num)
+                    val t4 = System.currentTimeMillis()
+                    jsonObj.put("compare_time", (t2 - t1))
+                    jsonObj.put("sort time=", (t3 - t2))
+                    jsonObj.put("take time=", (t4 - t3))
+                    jsonObj.put("total time=", (t4 - t1))
+                    jsonObj.put("from kafka and deal time", t4 - userid.toLong)
+
+                    println("total time=" + (t2 - t1))
+                    // 发送结果到mq
+                    MQUtils.sendMsg(jsonObj.toJSONString)
+                }
+            }
+        }
 
     }
 }
