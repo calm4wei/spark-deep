@@ -26,7 +26,7 @@ object FaceCompare extends Logging {
         //.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
         val sc = new SparkContext(sparkConf)
-        val fileBase = sc.textFile(sparkConf.get("spark.face.hdfs.path"), sparkConf.getInt("spark.face.batch.num.partition", 20))
+        val fileBase = sc.textFile(sparkConf.get("spark.face.hdfs.file.path"), sparkConf.getInt("spark.face.batch.num.partition", 20))
         println("fileBase=" + fileBase.count())
         val baseData = formatBase(fileBase)
         println("baseData=" + baseData.count())
