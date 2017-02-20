@@ -58,10 +58,10 @@ object BitFaceCompare {
         //
         params.foreachRDD {
             p =>
-                p.foreachPartition {
-                    f => compareSortPartitions(f, baseData)
-                }
-            //compareSortTopnByRDD(p, baseData)
+                //                p.foreachPartition {
+                //                    f => compareSortPartitions(f, baseData)
+                //                }
+                compareSortTopnByRDD(p, baseData)
         }
 
 

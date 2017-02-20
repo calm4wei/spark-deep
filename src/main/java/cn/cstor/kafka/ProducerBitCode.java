@@ -17,7 +17,7 @@ public class ProducerBitCode extends Producer {
     public static void main(String[] args) throws Exception {
 
         Producer producer = new ProducerBitCode();
-        long interval = 1000;
+        long interval = 2000;
         if (args.length >= 1) {
             interval = Long.valueOf(args[0]);
         }
@@ -32,7 +32,7 @@ public class ProducerBitCode extends Producer {
             jsonObject.put("id", System.currentTimeMillis());
             jsonObject.put("code", code);
             jsonObject.put("num", 3);
-            producer.sendMsg("faceRtn", "this msg is: " + i, jsonObject.toJSONString());
+            producer.sendMsg("bit", "this msg is: " + i, jsonObject.toJSONString());
             // interval = random.nextInt(10) * 1000;
             Thread.sleep(interval);
             i++;
